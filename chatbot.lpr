@@ -1,39 +1,38 @@
 program chatbot;
+
+{$codepage utf8}
 uses
   crt,
   unit_texto,
-  unitsaludos,
-  unit_respuestas;
+  unit_respuestas,
+  unit_archivos;
 
 var
   pregunta: string;
   terminar: boolean;
 
 begin
-  terminar:= false;
+  terminar := False;
 
   writeln('ChatterBot');
-repeat
+  repeat
     writeln(' ');
     readln(pregunta);
 
-    pregunta:= Normalizar(pregunta);
+    pregunta := Normalizar(pregunta);
 
-    if Saludar(pregunta) then
+    if BuscarEnArchivoTexto('saludos.txt', pregunta) then
+      writeln('Bienvenido. Indique la tarea a realizar.')
+    else if BuscarEnArchivoTexto('despedidas.txt', pregunta) then
     begin
-     writeln('Bienvenido. Indique la tarea a realizar.');
+      writeln('Hasta luego. Que tenga un buen día.');
+      ReadKey;
+      terminar := True;
     end
     else
-    if Despedir(pregunta) then
     begin
-     writeln('Hasta luego. Que tengas una jornada productiva.');
-     readkey;
-     terminar:= true;
-    end
-    else
-   begin
-     ResponderPregunta(pregunta);
-   end;
+      ResponderPregunta(pregunta);
+    end;
 
-until terminar = true;
+  until terminar = True;
 end.

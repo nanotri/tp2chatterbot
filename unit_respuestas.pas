@@ -2,60 +2,30 @@ unit unit_respuestas;
 
 interface
 
-uses
-  Classes;
-
 procedure ResponderPregunta(preg: string);
-function PuntajeCapacitaciones(kws: TStringList): integer;
-function PuntajeAlumnos(kws: TStringList): integer;
-function PuntajeDocentes(kws: TStringList): integer;
-function PuntajeEstadisticas(kws: TStringList): integer;
-
 
 implementation
 
 uses
+  SysUtils,
   unit_texto,
   tipos,
-  unit_keywords;
+  unit_keywords,
+  unit_archivos;
 
-function ConsultaCapacitaciones(preg: string): boolean;
+function AreaTexto(preg: string): integer;
 begin
-  ConsultaCapacitaciones:=
-    fraseKeyword(preg, 'capacitacion') or
-    fraseKeyword(preg, 'capacitaciones') or
-    fraseKeyword(preg, 'curso') or
-    fraseKeyword(preg, 'taller') or
-    fraseKeyword(preg, 'seminario');
-end;
-
-function EsConsultaCapacitaciones(preg: string): boolean;
-begin
-  EsConsultaCapacitaciones:=
-    fraseKeyword(preg, 'capacitacion') or
-    fraseKeyword(preg, 'capacitaciones') or
-    fraseKeyword(preg, 'curso') or
-    fraseKeyword(preg, 'taller') or
-    fraseKeyword(preg, 'seminario') or
-    fraseKeyword(preg, 'duracion') or
-    fraseKeyword(preg, 'horas') or
-    fraseKeyword(preg, 'vigente') or
-    fraseKeyword(preg, 'activo') or
-    fraseKeyword(preg, 'area');
-end;
-
-function ConsultaAlumnos(preg: string): boolean;
-begin
-  ConsultaAlumnos:=
-    fraseKeyword(preg, 'alumno') or
-    fraseKeyword(preg, 'alumnos');
-end;
-
-function ConsultaDocentes(preg: string): boolean;
-begin
-  ConsultaDocentes:=
-    fraseKeyword(preg, 'docente') or
-    fraseKeyword(preg, 'docentes');
+  AreaTexto := 0;
+  if FraseKeyword(preg, 'isi') then
+    AreaTexto := 1
+  else if FraseKeyword(preg, 'loi') then
+    AreaTexto := 2
+  else if FraseKeyword(preg, 'civil') then
+    AreaTexto := 3
+  else if FraseKeyword(preg, 'electro') then
+    AreaTexto := 4
+  else if FraseKeyword(preg, 'general') then
+    AreaTexto := 5;
 end;
 
 procedure MostrarCapacitacionesActivas;
@@ -63,29 +33,19 @@ var
   arch: T_ARCHIVO_CAP;
   cap: T_DATO_CAPACITACIONES;
 begin
-  Assign(arch, 'capacitaciones.dat');
-  Reset(arch);
-
-  writeln('Capacitaciones activas:');
-
-  while not EOF(arch) do
+  if AbrirCapacitaciones(arch) then
   begin
-    Read(arch, cap);
-    if cap.Estado then
-      writeln('- ', cap.Nombre);
-  end;
-
-  Close(arch);
-end;
-
-function AreaTexto(preg: string): integer;
-begin
-  AreaTexto:= 0;
-  if fraseKeyword(preg, 'isi') then AreaTexto:= 1
-  else if fraseKeyword(preg, 'loi') then AreaTexto:= 2
-  else if fraseKeyword(preg, 'civil') then AreaTexto:= 3
-  else if fraseKeyword(preg, 'electro') then AreaTexto:= 4
-  else if fraseKeyword(preg, 'general') then AreaTexto:= 5;
+    writeln('Capacitaciones activas:');
+    while not EOF(arch) do
+    begin
+      Read(arch, cap);
+      if cap.Estado then
+        writeln('- ', cap.Nombre);
+    end;
+    Close(arch);
+  end
+  else
+    writeln('No se pudo abrir capacitaciones.dat');
 end;
 
 procedure MostrarCapacitacionesPorArea(area: integer);
@@ -93,38 +53,46 @@ var
   arch: T_ARCHIVO_CAP;
   cap: T_DATO_CAPACITACIONES;
 begin
-  Assign(arch, 'capacitaciones.dat');
-  Reset(arch);
 
-  writeln('Capacitaciones del area seleccionada:');
-
-  while not EOF(arch) do
+  if AbrirCapacitaciones(arch) then
   begin
-    Read(arch, cap);
-    if (cap.Area = area) and cap.Estado then
-      writeln('- [', cap.Codigo, '] ', cap.Nombre);
-  end;
-
-  Close(arch);
+    writeln('Capacitaciones del area seleccionada:');
+    while not EOF(arch) do
+    begin
+      Read(arch, cap);
+      if (cap.Area = area) and cap.Estado then
+        writeln('- [', cap.Codigo, '] ', cap.Nombre);
+    end;
+    Close(arch);
+  end
+  else
+    writeln('No se pudo abrir capacitaciones.dat');
 end;
 
 procedure MostrarDuracion;
 var
   arch: T_ARCHIVO_CAP;
   cap: T_DATO_CAPACITACIONES;
+  horas: string;
 begin
-  Assign(arch, 'capacitaciones.dat');
-  Reset(arch);
-
-  writeln('Duracion de las capacitaciones:');
-
-  while not EOF(arch) do
+  if AbrirCapacitaciones(arch) then
   begin
-    Read(arch, cap);
-    writeln(cap.Nombre, ': ', cap.CantidadHoras, ' horas');
-  end;
+    writeln('Duracion de las capacitaciones:');
+    while not EOF(arch) do
+    begin
+      Read(arch, cap);
 
-  Close(arch);
+      if Abs(Frac(cap.CantidadHoras)) < 0.001 then
+        Str(cap.CantidadHoras: 0: 0, horas)
+      else
+        Str(cap.CantidadHoras: 0: 2, horas);
+
+      writeln(cap.Nombre, ': ', horas, ' horas');
+    end;
+    Close(arch);
+  end
+  else
+    writeln('No se pudo abrir capacitaciones.dat');
 end;
 
 procedure MostrarAprobados;
@@ -132,71 +100,108 @@ var
   arch: T_ARCHIVO_ALU;
   alu: T_DATO_ALUMNOS;
 begin
-  Assign(arch, 'alumnos.dat');
-  Reset(arch);
-
-  writeln('Alumnos aprobados:');
-
-  while not EOF(arch) do
+  if AbrirAlumnos(arch) then
   begin
-    Read(arch, alu);
-    if alu.Estado and alu.Condicion then
-      writeln('- ', alu.ApyNom);
-  end;
-
-  Close(arch);
+    writeln('Alumnos aprobados:');
+    while not EOF(arch) do
+    begin
+      Read(arch, alu);
+      if alu.Estado and alu.Condicion then
+        writeln('- ', alu.ApyNom);
+    end;
+    Close(arch);
+  end
+  else
+    writeln('No se pudo abrir alumnos.dat');
 end;
 
 procedure MostrarDocentes;
 var
-  arch: T_ARCHIVO_ALU;
-  alu: T_DATO_ALUMNOS;
+  arch: T_ARCHIVO_CAP;
+  cap: T_DATO_CAPACITACIONES;
+  i, contDocentes, contPaginacion: integer;
+  opcion: string;
 begin
-  Assign(arch, 'alumnos.dat');
-  Reset(arch);
-
-  writeln('Docentes UTN:');
-
-  while not EOF(arch) do
+  if AbrirCapacitaciones(arch) then
   begin
-    Read(arch, alu);
-    if alu.Estado and alu.DocenteUTN then
-      writeln('- ', alu.ApyNom, ' (Capacitacion ', alu.Codigo, ')');
-  end;
+    writeln('--- LISTADO DE DOCENTES (Presione Enter para avanzar) ---');
 
-  Close(arch);
+    contPaginacion := 0;
+
+    while not EOF(arch) do
+    begin
+      Read(arch, cap);
+
+      if cap.Estado then
+      begin
+        writeln('--------------------------------------------------');
+        writeln('Capacitacion: ', cap.Nombre);
+
+        contDocentes := 0;
+        for i := 1 to 4 do
+        begin
+          if Trim(cap.Docentes[i]) <> '' then
+          begin
+            writeln('   -> ', cap.Docentes[i]);
+            contDocentes := contDocentes + 1;
+          end;
+        end;
+
+        if contDocentes = 0 then
+          writeln('   (Sin docentes asignados)');
+
+        contPaginacion := contPaginacion + 1;
+
+        if contPaginacion = 3 then
+        begin
+          writeln;
+          Write('Presione ENTER para ver mas: ');
+          readln(opcion);
+
+          contPaginacion := 0;
+          writeln;
+        end;
+      end;
+    end;
+    Close(arch);
+    writeln('--------------------------------------------------');
+  end
+  else
+    writeln('No se pudo abrir capacitaciones.dat');
 end;
 
-procedure EstadisticaDistribucionFechas;
+procedure EstadisticaDistribucionTipos;
 var
   arch: T_ARCHIVO_CAP;
   cap: T_DATO_CAPACITACIONES;
   cursos, talleres, seminarios: integer;
 begin
-  cursos:= 0;
-  talleres:= 0;
-  seminarios:= 0;
+  cursos := 0;
+  talleres := 0;
+  seminarios := 0;
 
-  Assign(arch, 'capacitaciones.dat');
-  Reset(arch);
-
-  while not EOF(arch) do
+  if AbrirCapacitaciones(arch) then
   begin
-    Read(arch, cap);
-    if cap.Estado then
-      case cap.Tipo of
-        1: cursos:= cursos + 1;
-        2: talleres:= talleres + 1;
-        3: seminarios:= seminarios + 1;
-      end;
-  end;
+    while not EOF(arch) do
+    begin
+      Read(arch, cap);
+      if cap.Estado then
+        case cap.Tipo of
+          1: cursos := cursos + 1;
+          2: talleres := talleres + 1;
+          3: seminarios := seminarios + 1;
+        end;
+    end;
 
-  Close(arch);
+    Close(arch);
 
-  writeln('Distribucion de capacitaciones:');
-  writeln('- Cursos: ', cursos);
-  writeln('- Talleres: ', talleres);
-  writeln('- Seminarios: ', seminarios);
+    writeln('Distribucion de capacitaciones:');
+    writeln('- Cursos: ', cursos);
+    writeln('- Talleres: ', talleres);
+    writeln('- Seminarios: ', seminarios);
+  end
+  else
+    writeln('No se pudo abrir capacitaciones.dat');
 end;
 
 procedure EstadisticaPorArea;
@@ -207,29 +212,34 @@ var
   area: array[1..5] of integer;
   i: integer;
 begin
-  total:= 0;
-  for i:= 1 to 5 do
-    area[i]:= 0;
+  total := 0;
+  for i := 1 to 5 do
+    area[i] := 0;
 
-  Assign(arch, 'capacitaciones.dat');
-  Reset(arch);
-
-  while not EOF(arch) do
+  if AbrirCapacitaciones(arch) then
   begin
-    Read(arch, cap);
-    if cap.Estado then
+    while not EOF(arch) do
     begin
-      total:= total + 1;
-      area[cap.Area]:= area[cap.Area] + 1;
+      Read(arch, cap);
+      if cap.Estado then
+      begin
+        total := total + 1;
+        if (cap.Area >= 1) and (cap.Area <= 5) then
+          area[cap.Area] := area[cap.Area] + 1;
+      end;
     end;
-  end;
 
-  Close(arch);
+    Close(arch);
 
-  writeln('Porcentaje de capacitaciones por area:');
-  if total > 0 then
-    for i:= 1 to 5 do
-      writeln('Area ', i, ': ', (area[i] * 100) div total, '%');
+    writeln('Porcentaje de capacitaciones por area:');
+    if total > 0 then
+      for i := 1 to 5 do
+        writeln('Area ', i, ': ', (area[i] * 100) div total, '%')
+    else
+      writeln('No hay capacitaciones activas.');
+  end
+  else
+    writeln('No se pudo abrir capacitaciones.dat');
 end;
 
 procedure EstadisticaEstadoCapacitaciones;
@@ -238,134 +248,131 @@ var
   cap: T_DATO_CAPACITACIONES;
   activas, inactivas: integer;
 begin
-  activas:= 0;
-  inactivas:= 0;
+  activas := 0;
+  inactivas := 0;
 
-  Assign(arch, 'capacitaciones.dat');
-  Reset(arch);
-
-  while not EOF(arch) do
+  if AbrirCapacitaciones(arch) then
   begin
-    Read(arch, cap);
-    if cap.Estado then
-      activas:= activas + 1
-    else
-      inactivas:= inactivas + 1;
-  end;
+    while not EOF(arch) do
+    begin
+      Read(arch, cap);
+      if cap.Estado then
+        activas := activas + 1
+      else
+        inactivas := inactivas + 1;
+    end;
 
-  Close(arch);
+    Close(arch);
 
-  writeln('Estado de las capacitaciones:');
-  writeln('- Activas: ', activas);
-  writeln('- Inactivas: ', inactivas);
+    writeln('Estado de las capacitaciones:');
+    writeln('- Activas: ', activas);
+    writeln('- Inactivas: ', inactivas);
+  end
+  else
+    writeln('No se pudo abrir capacitaciones.dat');
 end;
 
-function PuntajeConsulta(kws: TStringList): integer;
+function PuntajeCapacitaciones(const kws: TKeywords; n: integer): integer;
 var
   i: integer;
 begin
-  Result:= 0;
-
-  for i:= 0 to kws.Count - 1 do
+  PuntajeCapacitaciones := 0;
+  for i := 1 to n do
   begin
-    if esKeyword(kws[i]) then
-      Result:= Result + 3;
+    if (kws[i] = 'ver') or (kws[i] = 'mostrar') or (kws[i] = 'listar') or
+      (kws[i] = 'quiero') then
+      PuntajeCapacitaciones := PuntajeCapacitaciones + 1;
 
-    if kws[i] = 'duracion' then
-      Result:= Result + 2;
+    if EsKeyword(kws[i]) then
+      PuntajeCapacitaciones := PuntajeCapacitaciones + 2;
 
-    if kws[i] = 'area' then
-      Result:= Result + 2;
+    if (kws[i] = 'capacitacion') or (kws[i] = 'capacitaciones') or
+      (kws[i] = 'curso') or (kws[i] = 'cursos') or (kws[i] = 'taller') or
+      (kws[i] = 'seminario') then
+      PuntajeCapacitaciones := PuntajeCapacitaciones + 3;
 
-    if (kws[i] = 'activo') or (kws[i] = 'vigente') then
-      Result:= Result + 2;
+    if (kws[i] = 'activo') or (kws[i] = 'vigente') or (kws[i] = 'vigentes') then
+      PuntajeCapacitaciones := PuntajeCapacitaciones + 2;
   end;
 end;
 
-function PuntajeCapacitaciones(kws: TStringList): integer;
+function PuntajeAlumnos(const kws: TKeywords; n: integer): integer;
 var
   i: integer;
 begin
-  Result:= 0;
-  for i:= 0 to kws.Count - 1 do
-  begin
-    if esKeyword(kws[i]) then
-      Result:= Result + 2;
-
-    if (kws[i] = 'capacitacion') or (kws[i] = 'capacitaciones')
-       or (kws[i] = 'curso') or (kws[i] = 'taller')
-       or (kws[i] = 'seminario') then
-      Result:= Result + 3;
-
-    if (kws[i] = 'activo') or (kws[i] = 'vigente') then
-      Result:= Result + 2;
-  end;
-end;
-
-function PuntajeAlumnos(kws: TStringList): integer;
-var
-  i: integer;
-begin
-  Result:= 0;
-  for i:= 0 to kws.Count - 1 do
+  PuntajeAlumnos := 0;
+  for i := 1 to n do
   begin
     if (kws[i] = 'alumno') or (kws[i] = 'alumnos') then
-      Result:= Result + 3;
+      PuntajeAlumnos := PuntajeAlumnos + 3;
 
     if (kws[i] = 'aprobado') or (kws[i] = 'aprobados') then
-      Result:= Result + 2;
+      PuntajeAlumnos := PuntajeAlumnos + 2;
   end;
 end;
 
-function PuntajeDocentes(kws: TStringList): integer;
+function PuntajeDocentes(const kws: TKeywords; n: integer): integer;
 var
   i: integer;
 begin
-  Result := 0;
-  for i := 0 to kws.Count - 1 do
+  PuntajeDocentes := 0;
+  for i := 1 to n do
     if (kws[i] = 'docente') or (kws[i] = 'docentes') then
-      Result := Result + 3;
+      PuntajeDocentes := PuntajeDocentes + 3;
 end;
 
-function PuntajeEstadisticas(kws: TStringList): integer;
+function PuntajeEstadisticas(const kws: TKeywords; n: integer): integer;
 var
   i: integer;
 begin
-  Result:= 0;
-  for i:= 0 to kws.Count - 1 do
-    if (kws[i] = 'estadistica') or (kws[i] = 'estadisticas')
-       or (kws[i] = 'estado') or (kws[i] = 'distribucion') then
-      Result:= Result + 3;
+  PuntajeEstadisticas := 0;
+  for i := 1 to n do
+    if (kws[i] = 'estadistica') or (kws[i] = 'estadisticas') or
+      (kws[i] = 'estado') or (kws[i] = 'distribucion') then
+      PuntajeEstadisticas := PuntajeEstadisticas + 3;
 end;
 
 procedure ResponderPregunta(preg: string);
 var
   limpia: string;
-  kws: TStringList;
+  kws: TKeywords;
+  n: integer;
   pCap, pAlu, pDoc, pEst: integer;
+  area: integer;
+  tieneArea: boolean;
 begin
   limpia := LimpiarFrase(preg);
-  kws := extraerKeywords(limpia);
 
-  pCap := PuntajeCapacitaciones(kws);
-  pAlu := PuntajeAlumnos(kws);
-  pDoc := PuntajeDocentes(kws);
-  pEst := PuntajeEstadisticas(kws);
+  ExtraerKeywords(limpia, kws, n);
+
+  pCap := PuntajeCapacitaciones(kws, n);
+  pAlu := PuntajeAlumnos(kws, n);
+  pDoc := PuntajeDocentes(kws, n);
+  pEst := PuntajeEstadisticas(kws, n);
+
+  { Determinar si hay área válida }
+  area := AreaTexto(limpia);
+  tieneArea := (area >= 1) and (area <= 5);
 
   if (pCap >= pAlu) and (pCap >= pDoc) and (pCap >= pEst) and (pCap > 0) then
   begin
-    if fraseKeyword(limpia, 'activo') or fraseKeyword(limpia, 'vigente') then
+    if FraseKeyword(limpia, 'activo') or FraseKeyword(limpia, 'vigente') then
       MostrarCapacitacionesActivas
-    else if fraseKeyword(limpia, 'area') then
-      MostrarCapacitacionesPorArea(AreaTexto(limpia))
-    else if fraseKeyword(limpia, 'duracion') then
+    else if FraseKeyword(limpia, 'area') or tieneArea then
+    begin
+      if tieneArea then
+        MostrarCapacitacionesPorArea(area)
+      else
+        writeln('Indique un area valida (ISI, LOI, CIVIL, ELECTRO, GENERAL).');
+    end
+    else if FraseKeyword(limpia, 'duracion') or FraseKeyword(limpia, 'horas') then
       MostrarDuracion
     else
       MostrarCapacitacionesActivas;
   end
   else if (pAlu > pCap) and (pAlu >= pDoc) and (pAlu >= pEst) then
   begin
-    if fraseKeyword(limpia, 'aprobado') then
+    if FraseKeyword(limpia, 'aprobado') or FraseKeyword(limpia, 'aprobados') then
       MostrarAprobados
     else
       writeln('Debe indicar si desea alumnos aprobados.');
@@ -373,10 +380,16 @@ begin
   else if (pDoc > pCap) and (pDoc > pAlu) and (pDoc >= pEst) then
     MostrarDocentes
   else if (pEst > 0) then
-    EstadisticaEstadoCapacitaciones
+  begin
+    if FraseKeyword(limpia, 'distribucion') then
+      EstadisticaDistribucionTipos
+    else if FraseKeyword(limpia, 'area') then
+      EstadisticaPorArea
+    else
+      EstadisticaEstadoCapacitaciones;
+  end
   else
     writeln('No entiendo la consulta. Intente nuevamente.');
-
-  kws.Free;
 end;
+
 end.

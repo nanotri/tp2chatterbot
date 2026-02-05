@@ -1,97 +1,117 @@
 unit unit_keywords;
-interface
- uses
-   Classes;
 
-function esKeyword(palabra: string): boolean;
-function esStopword(palabra: string): boolean;
-function fraseKeyword(frase, clave: string): boolean;
-function contieneKeyword(frase: string): boolean;
-function extraerKeywords(frase: string): TStringList;
+interface
+
+uses
+  unit_archivos;
+
+const
+  MAX_KWS = 60;
+
+type
+  TKeywords = array[1..MAX_KWS] of string;
+
+function EsKeyword(palabra: string): boolean;
+function EsStopword(palabra: string): boolean;
+function FraseKeyword(frase, clave: string): boolean;
+function ContieneKeyword(frase: string): boolean;
+
+procedure ExtraerKeywords(frase: string; var kws: TKeywords; var n: integer);
 
 implementation
 
 uses
-  unit_levenshtein;
+  SysUtils;
 
-function buscar(nomArch, palabra: string): boolean;
+function FraseKeyword(frase, clave: string): boolean;
+begin
+  FraseKeyword := Pos(clave, frase) > 0;
+end;
+
+function EsKeyword(palabra: string): boolean;
+begin
+  palabra := Trim(LowerCase(palabra));
+  
+  if palabra = '' then
+    EsKeyword := False
+  else
+    EsKeyword := BuscarEnArchivoConLevenshtein('keywords', palabra, 1);
+end;
+
+function EsStopword(palabra: string): boolean;
+begin
+  palabra := Trim(LowerCase(palabra));
+  
+  if palabra = '' then
+    EsStopword := False
+  else
+    EsStopword := BuscarEnArchivoConLevenshtein('stopwords', palabra, 1);
+end;
+
+function ContieneKeyword(frase: string): boolean;
 var
-  arch: Text;
-  linea: string;
+  palabra: string;
+  i: integer;
+  encontrado: boolean;
 begin
-  buscar:= false;
+  frase := Trim(LowerCase(frase));
+  palabra := '';
+  encontrado := False;
 
-  Assign(arch, nomArch);
-
-  {$I-}
-  Reset(arch);
-  {$I+}
-
-  if IOResult <> 0 then
+  for i := 1 to Length(frase) do
   begin
-    Rewrite(arch);
-    Close(arch);
-    Reset(arch);
+    if frase[i] <> ' ' then
+      palabra := palabra + frase[i]
+    else
+    begin
+      if (palabra <> '') and (not encontrado) then
+        if EsKeyword(palabra) then
+          encontrado := True;
+
+      palabra := '';
+    end;
   end;
 
-  while not EOF(arch) do
-  begin
-    ReadLn(arch, linea);
-    if DistanciaLevenshtein(palabra, linea) <= 1 then
-      buscar:= true;
-  end;
+  if (palabra <> '') and (not encontrado) then
+    if EsKeyword(palabra) then
+      encontrado := True;
 
-  Close(arch);
+  ContieneKeyword := encontrado;
 end;
 
-function fraseKeyword(frase, clave: string): boolean;
-begin
-  fraseKeyword := Pos(clave, frase) > 0;
-end;
-
-function esKeyword(palabra: string): boolean;
-begin
-  esKeyword:= buscar('keywords', palabra);
-end;
-
-function esStopWord(palabra: string): boolean;
-begin
-  esStopWord:= buscar('stopwords', palabra);
-end;
-
-function contieneKeyword(frase: string): boolean;
+procedure ExtraerKeywords(frase: string; var kws: TKeywords; var n: integer);
 var
   palabra: string;
   i: integer;
 begin
-  contieneKeyword := false;
+  n := 0;
   palabra := '';
+  frase := Trim(LowerCase(frase));
 
-  for i:= 1 to Length(frase) do
+  for i := 1 to Length(frase) do
   begin
     if frase[i] <> ' ' then
-      palabra:= palabra + frase[i]
+      palabra := palabra + frase[i]
     else
     begin
-      if esKeyword(palabra) then
-        contieneKeyword:= true;
-      palabra:= '';
+      if palabra <> '' then
+      begin
+        if n < MAX_KWS then
+        begin
+          Inc(n);
+          kws[n] := palabra;
+        end;
+        palabra := '';
+      end;
     end;
   end;
 
   if palabra <> '' then
-    if esKeyword(palabra) then
-      contieneKeyword:= true;
-end;
-
-function extraerKeywords(frase: string): TStringList;
-var
-  l: TStringList;
-begin
-  l := TStringList.Create;
-  l.Delimiter := ' ';
-  l.DelimitedText := frase;
-  Result := l;
+    if n < MAX_KWS then
+    begin
+      Inc(n);
+      kws[n] := palabra;
+    end;
 end;
 
 end.
